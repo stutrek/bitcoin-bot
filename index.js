@@ -5,7 +5,6 @@ const API_URI = 'https://api.gdax.com';
 const SANDBOX_URI = 'https://api-public.sandbox.gdax.com';
 
 const genericOrder = Object.freeze({
-	size: 0.0001,
 	product_id: 'BTC-USD',
 	type: 'limit',
 	time_in_force: 'GTT',
@@ -26,26 +25,33 @@ const btcIdPromise = authedClient
 })
 .then(id => authedClient.getAccount(id));
 
+var ticks = 0;
+
 async function lookupPriceAndPlaceOrders (walletId) {
 	const currentTicker = await publicClient.getProductTicker('BTC-USD');
-
+	ticks++;
 	console.log(JSON.stringify(currentTicker, null, 4));
 	const ask = parseFloat(currentTicker.ask);
 	const bid = parseFloat(currentTicker.bid);
 
-	let onePercentUp = (ask + (ask * 0.01)).toFixed(2);
-	let onePercentDown = (bid - (bid * 0.01)).toFixed(2);
+	let percent = ticks % 2 ? 0.01 : 0.005;
+	let btc = ticks % 2 ? 0.002 : 0.001;
+
+	let sellPrice = (ask + (ask * percent)).toFixed(2);
+	let buyPrice = (bid - (bid * percent)).toFixed(2);
 
 	let buyOrder = {
 		...genericOrder,
 		side: 'buy',
-		price: onePercentDown,
+		price: buyPrice,
+		size: btc
 	};
 
 	let sellOrder = {
 		...genericOrder,
 		side: 'sell',
-		price: onePercentUp
+		price: sellPrice,
+		size: btc
 	};
 
 	console.log('placing orders', buyOrder, sellOrder);
