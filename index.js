@@ -25,17 +25,24 @@ const btcIdPromise = authedClient
 })
 .then(id => authedClient.getAccount(id));
 
-var ticks = 0;
+var tick = 0;
+
+async function makeOrder (order) {
+	try {
+		return await authedClient.placeOrder(order);
+	} catch (e) {
+		return await authedClient.placeOrder(order);
+	}
+}
 
 async function lookupPriceAndPlaceOrders (walletId) {
 	const currentTicker = await publicClient.getProductTicker('BTC-USD');
-	ticks++;
-	console.log(JSON.stringify(currentTicker, null, 4));
+	tick++;
 	const ask = parseFloat(currentTicker.ask);
 	const bid = parseFloat(currentTicker.bid);
 
-	let percent = ticks % 2 ? 0.01 : 0.005;
-	let btc = ticks % 2 ? 0.002 : 0.001;
+	let percent = tick % 2 ? 0.01 : 0.005;
+	let btc = tick % 2 ? 0.002 : 0.001;
 
 	let sellPrice = (ask + (ask * percent)).toFixed(2);
 	let buyPrice = (bid - (bid * percent)).toFixed(2);
@@ -54,11 +61,11 @@ async function lookupPriceAndPlaceOrders (walletId) {
 		size: btc
 	};
 
-	console.log('placing orders', buyOrder, sellOrder);
+	console.log(`Tick ${tick}. Placing orders at $${buyPrice} and $${sellPrice}.`);
 
 	return Promise.all([
-		authedClient.placeOrder(buyOrder),
-		authedClient.placeOrder(sellOrder)
+		makeOrder(buyOrder),
+		makeOrder(sellOrder)
 	])
 }
 
@@ -66,7 +73,7 @@ async function placeOrdersAndRepeat (id) {
 	console.log('starting process', new Date().toISOString());
 	try {
 		let orders = await lookupPriceAndPlaceOrders(id);
-		console.log('orders', orders);
+		console.log('orders: ', orders.map(o => o.id).join(', and '));
 	} catch (e) {
 		console.log('error placing orders');
 		console.error(e);
