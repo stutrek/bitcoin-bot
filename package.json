@@ -1,0 +1,12 @@
+{
+  "name": "bitcoin-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "gdax": "coinbase/gdax-node"
+  },
+  "scripts": {
+    "start": "node index.js"
+  }
+}
