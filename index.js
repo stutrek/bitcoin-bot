@@ -4,13 +4,20 @@ const {PASSPHRASE, API_KEY, API_SECRET} = require('./keys.json');
 const API_URI = 'https://api.gdax.com';
 const SANDBOX_URI = 'https://api-public.sandbox.gdax.com';
 
-const genericOrder = Object.freeze({
+const genericInitialOrder = Object.freeze({
 	product_id: 'BTC-USD',
 	type: 'limit',
 	time_in_force: 'GTT',
 	cancel_after: 'min',
 	post_only: true
-})
+});
+
+const genericReplacementOrder = Object.freeze({
+	product_id: 'BTC-USD',
+	type: 'limit',
+	time_in_force: 'GTC',
+	post_only: true
+});
 
 let API_TO_USE = API_URI;
 // API_TO_USE = SANDBOX_URL;
@@ -27,7 +34,7 @@ const btcIdPromise = authedClient
 
 var tick = 0;
 
-async function makeOrder (order) {
+async function placeOrder (order) {
 	try {
 		return await authedClient.placeOrder(order);
 	} catch (e) {
@@ -35,45 +42,103 @@ async function makeOrder (order) {
 	}
 }
 
-async function lookupPriceAndPlaceOrders (walletId) {
-	const currentTicker = await publicClient.getProductTicker('BTC-USD');
-	tick++;
-	const ask = parseFloat(currentTicker.ask);
-	const bid = parseFloat(currentTicker.bid);
+async function getOrder (order) {
+	try {
+		return await authedClient.getOrder(order.id);
+	} catch (e) {
+		return await authedClient.getOrder(order.id);
+	}
+}
 
-	let percent = tick % 2 ? 0.01 : 0.005;
+async function lookupPriceAndPlaceOrders (walletId) {
+	tick++;
+	const ticker = await publicClient.getProductTicker('BTC-USD');
+	const ask = parseFloat(ticker.ask);
+	const bid = parseFloat(ticker.bid);
+
+	let percent = tick % 2 ? 0.005 : 0.0025;
 	let btc = tick % 2 ? 0.002 : 0.001;
 
 	let sellPrice = (ask + (ask * percent)).toFixed(2);
 	let buyPrice = (bid - (bid * percent)).toFixed(2);
 
 	let buyOrder = {
-		...genericOrder,
+		...genericInitialOrder,
 		side: 'buy',
 		price: buyPrice,
 		size: btc
 	};
 
 	let sellOrder = {
-		...genericOrder,
+		...genericInitialOrder,
 		side: 'sell',
 		price: sellPrice,
 		size: btc
 	};
 
-	console.log(`Tick ${tick}. Placing orders at $${buyPrice} and $${sellPrice}.`);
 
-	return Promise.all([
-		makeOrder(buyOrder),
-		makeOrder(sellOrder)
-	])
+	let orders = await Promise.all([
+		placeOrder(buyOrder),
+		placeOrder(sellOrder)
+	]);
+
+	return {
+		tick,
+		ticker,
+		orders
+	}
+}
+
+async function checkForExecutedOrderAndCreateReplacement (state) {
+	let orders = await Promise.all(state.orders.map(o => getOrder(o)));
+	let executedOrders = orders.filter(o => o.status === 'done' && o.done_reason === 'filled');
+	let openOrders = orders.filter(o => o.status === 'open');
+
+	if (executedOrders.length === 0) {
+		if (openOrders.length) {
+			console.log(`Tick ${state.tick} no executions, trying again in 15 seconds.`);
+			setTimeout(() => checkForExecutedOrderAndCreateReplacement(state), 15 * 1000);
+		} else {
+			console.log(`Tick ${state.tick} no executions`);
+		}
+		return
+	}
+
+	if (executedOrders.length === 2) {
+		console.log(`Tick ${state.tick}. Both orders were filled. Not creating replacements.`);
+		return;
+	}
+
+	let replacementOrders = executedOrders.map(o => {
+		let replacementOrder;
+		if (o.side === 'buy') {
+			replacementOrder = {
+				...genericReplacementOrder,
+				side: 'sell',
+				price: state.ticker.ask,
+				size: o.size
+			}
+		} else {
+			replacementOrder = {
+				...genericReplacementOrder,
+				side: 'buy',
+				price: state.ticker.bid,
+				size: o.size
+			}
+		}
+		return replacementOrder;
+	});
+
+	let orderInfos = await Promise.all(replacementOrders.map(placeOrder));
+	console.log(`Tick ${state.tick}. Placed replacement order(s): ${orderInfos.map(o => `${o.id} @ ${o.price}`).join(' and ')}`);
 }
 
 async function placeOrdersAndRepeat (id) {
 	console.log('starting process', new Date().toISOString());
 	try {
-		let orders = await lookupPriceAndPlaceOrders(id);
-		console.log('orders: ', orders.map(o => o.id).join(', and '));
+		let state = await lookupPriceAndPlaceOrders(id);
+		console.log(`Tick ${state.tick}. Orders: `, state.orders.map(o => `${o.id} @ ${o.price}`).join(' and '));
+		setTimeout(() => checkForExecutedOrderAndCreateReplacement(state), 15 * 1000);
 	} catch (e) {
 		console.log('error placing orders');
 		console.error(e);
