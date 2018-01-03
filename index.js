@@ -1,6 +1,8 @@
 const Gdax = require('gdax');
 const {PASSPHRASE, API_KEY, API_SECRET} = require('./keys.json');
 
+const createReplacementOrders = require('./src/createReplacementOrders');
+
 const API_URI = 'https://api.gdax.com';
 const SANDBOX_URI = 'https://api-public.sandbox.gdax.com';
 
@@ -12,12 +14,19 @@ const genericInitialOrder = Object.freeze({
 	post_only: true
 });
 
-const genericReplacementOrder = Object.freeze({
-	product_id: 'BTC-USD',
-	type: 'limit',
-	time_in_force: 'GTC',
-	post_only: true
-});
+const RUN_ID = new Date().toISOString().replace(/\W/g, '-');
+
+const orderConfigs = [{
+	percent: 0.001, //0.0025,
+	amount: 0.002
+},{
+	percent: 0.005,
+	amount: 0.004
+},{
+	percent: 0.01,
+	amount: 0.006
+}];
+const amounts = [0.002, 0.004, 0.006];
 
 let API_TO_USE = API_URI;
 // API_TO_USE = SANDBOX_URL;
@@ -31,8 +40,6 @@ const btcIdPromise = authedClient
 	return data.find(a => a.currency === 'BTC').id;
 })
 .then(id => authedClient.getAccount(id));
-
-var tick = 0;
 
 async function placeOrder (order) {
 	try {
@@ -50,14 +57,12 @@ async function getOrder (order) {
 	}
 }
 
-async function lookupPriceAndPlaceOrders (walletId) {
-	tick++;
+async function lookupPriceAndPlaceOrders (walletId, tick, orderConfig) {
 	const ticker = await publicClient.getProductTicker('BTC-USD');
 	const ask = parseFloat(ticker.ask);
 	const bid = parseFloat(ticker.bid);
 
-	let percent = tick % 2 ? 0.005 : 0.0025;
-	let btc = tick % 2 ? 0.002 : 0.001;
+	let { percent, amount } = orderConfig;
 
 	let sellPrice = (ask + (ask * percent)).toFixed(2);
 	let buyPrice = (bid - (bid * percent)).toFixed(2);
@@ -66,14 +71,14 @@ async function lookupPriceAndPlaceOrders (walletId) {
 		...genericInitialOrder,
 		side: 'buy',
 		price: buyPrice,
-		size: btc
+		size: amount
 	};
 
 	let sellOrder = {
 		...genericInitialOrder,
 		side: 'sell',
 		price: sellPrice,
-		size: btc
+		size: amount
 	};
 
 
@@ -109,42 +114,25 @@ async function checkForExecutedOrderAndCreateReplacement (state) {
 		return;
 	}
 
-	let replacementOrders = executedOrders.map(o => {
-		let replacementOrder;
-		if (o.side === 'buy') {
-			replacementOrder = {
-				...genericReplacementOrder,
-				side: 'sell',
-				price: state.ticker.ask,
-				size: o.size
-			}
-		} else {
-			replacementOrder = {
-				...genericReplacementOrder,
-				side: 'buy',
-				price: state.ticker.bid,
-				size: o.size
-			}
-		}
-		return replacementOrder;
-	});
+	let replacementOrders = createReplacementOrders(state, executedOrders);
 
 	let orderInfos = await Promise.all(replacementOrders.map(placeOrder));
 	console.log(`Tick ${state.tick}. Placed replacement order(s): ${orderInfos.map(o => `${o.id} @ ${o.price}`).join(' and ')}`);
 }
 
-async function placeOrdersAndRepeat (id) {
+async function placeOrdersAndRepeat (id, tick) {
+	let orderConfig = orderConfigs[tick % orderConfigs.length];
 	console.log('starting process', new Date().toISOString());
 	try {
-		let state = await lookupPriceAndPlaceOrders(id);
-		console.log(`Tick ${state.tick}. Orders: `, state.orders.map(o => `${o.id} @ ${o.price}`).join(' and '));
+		let state = await lookupPriceAndPlaceOrders(id, tick, orderConfig);
+		console.log(`Tick ${tick}. Orders: `, state.orders.map(o => `${o.id} @ ${o.price}`).join(' and '));
 		setTimeout(() => checkForExecutedOrderAndCreateReplacement(state), 15 * 1000);
 	} catch (e) {
 		console.log('error placing orders');
 		console.error(e);
 	}
 	console.log('complete', new Date().toISOString());
-	setTimeout(() => placeOrdersAndRepeat(id), 30 * 1000);
+	setTimeout(() => placeOrdersAndRepeat(id, tick+1), (60 / orderConfigs.length) * 1000);
 }
 
-btcIdPromise.then(placeOrdersAndRepeat)
+btcIdPromise.then(id => placeOrdersAndRepeat(id, 0));
