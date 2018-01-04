@@ -15,7 +15,7 @@ module.exports = function (record) {
 	let potentialValueOfReplacement = originalOrder.size * tickerPrice;
 
 	let desiredDollars = valueOfThisTrade - (valueOfThisTrade - potentialValueOfReplacement) / 2;
-	let newSize = (desiredDollars / tickerPrice).toFixed(6);
+	let newSize = (desiredDollars / tickerPrice).toFixed(8);
 
 	if (originalOrder.side === 'buy') {
 		replacementOrder = {

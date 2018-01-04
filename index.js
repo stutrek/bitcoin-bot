@@ -56,8 +56,10 @@ async function placeOrder (order, ticker, original=null) {
 	};
 
 	records = addRecord(records, record);
-
-	if (original) {
+	if (!record.order.side) {
+		console.log('Error placing order.');
+		console.log(record.order);
+	} else if (original) {
 		console.log(`Placed ${record.order.side.toUpperCase().padEnd(4, ' ')} ${record.order.size} @ ${record.order.price} -- ${record.order.id} -- replaces ${original.id}`);
 	} else {
 		console.log(`Placed ${record.order.side.toUpperCase().padEnd(4, ' ')} ${record.order.size} @ ${record.order.price} -- ${record.order.id}`);
@@ -132,11 +134,22 @@ async function updateOrders () {
 		records = removeExpiredRecords(records, userOrders);
 
 		let recordsToReplace = executedRecords.filter(r => r.original === null);
-
 		recordsToReplace.forEach(async record => {
 			let order = createReplacementOrder(record);
 			placeOrder(order, record.ticker, record.order);
 		});
+
+		let filledReplacementOrders = executedRecords.filter(r => r.original !== null);
+		filledReplacementOrders.forEach(record => {
+			let btcNet = record.order.size - record.original.size
+			let cashNet = (record.original.size * record.original.price) - (record.order.size * record.order.price);
+			if (record.order.side === 'sell') {
+				btcNet = btcNet * -1;
+				cashNet = cashNet * -1;
+			}
+			console.log(`Filled replacement ${record.order.side.toUpperCase().padEnd(4, ' ')} ${record.order.size} @ ${record.order.price} -- ${record.order.id} -- Net ${btcNet.toFixed(8)}BTC, $${cashNet.toFixed(2)}.`);
+		});
+
 	} catch (e) {
 		console.log('Unable to check for records. Will try again in two seconds.')
 		console.error(e)
