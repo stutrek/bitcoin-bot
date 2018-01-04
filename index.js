@@ -123,19 +123,24 @@ async function placeOrdersAndRepeat (tick) {
 }
 
 async function updateOrders () {
-	const userOrders = await authedClient.getOrders();
-	const userFills = await authedClient.getFills();
+	try {
+		const userOrders = await authedClient.getOrders();
+		const userFills = await authedClient.getFills();
 
-	let executedRecords = getExecutedRecords(records, userFills);
-	records = removeExecutedRecords(records, userFills)
-	records = removeExpiredRecords(records, userOrders);
+		let executedRecords = getExecutedRecords(records, userFills);
+		records = removeExecutedRecords(records, userFills)
+		records = removeExpiredRecords(records, userOrders);
 
-	let recordsToReplace = executedRecords.filter(r => r.original === null);
+		let recordsToReplace = executedRecords.filter(r => r.original === null);
 
-	recordsToReplace.forEach(async record => {
-		let order = createReplacementOrder(record);
-		placeOrder(order, record.ticker, record.order);
-	});
+		recordsToReplace.forEach(async record => {
+			let order = createReplacementOrder(record);
+			placeOrder(order, record.ticker, record.order);
+		});
+	} catch (e) {
+		console.log('Unable to check for records. Will try again in two seconds.')
+		console.error(e)
+	}
 
 	setTimeout(updateOrders, 2000);
 }
