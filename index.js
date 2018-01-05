@@ -180,7 +180,7 @@ async function updateOrders () {
 		saveState();
 
 		if (records.find(r => r.original === null) === undefined) {
-			placeOrders();
+			await placeOrders();
 		}
 
 		let filledReplacementOrders = executedRecords.filter(r => r.original !== null);
