@@ -191,7 +191,7 @@ async function updateOrders () {
 				btcNet = btcNet * -1;
 				cashNet = cashNet * -1;
 			}
-			console.log(`Filled replacement ${record.order.side.toUpperCase().padEnd(4, ' ')} ${record.order.size} @ ${record.order.price} -- ${record.order.id} -- Net ${btcNet.toFixed(8)}BTC, $${cashNet.toFixed(2)}.`);
+			console.log(`Filled replacement ${record.order.side.toUpperCase().padEnd(4, ' ')} ${record.order.size} @ $${Number(record.order.price).toFixed(2)} -- ${record.order.id} -- Net ${btcNet.toFixed(8)}BTC, $${cashNet.toFixed(2)}.`);
 		});
 
 	} catch (e) {
