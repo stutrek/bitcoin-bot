@@ -1,3 +1,5 @@
+const { writeFile, readFileSync } = require('fs');
+
 const Gdax = require('gdax');
 const {PASSPHRASE, API_KEY, API_SECRET} = require('./keys.json');
 
@@ -30,6 +32,33 @@ const orderConfigs = [{
 const amounts = [0.002, 0.004, 0.006];
 
 var records = [];
+var tick = 0;
+
+try {
+	let stateString = readFileSync('./state.json');
+	let state = JSON.parse(stateString);
+	records = state.records;
+	tick = state.tick;
+} catch (e) {
+	console.log('No state file found');
+}
+
+console.log(`Starting on tick ${tick} with ${records.length} records`);
+
+
+function saveState () {
+	let stateString = JSON.stringify({
+		records,
+		tick
+	}, null, 4);
+
+	writeFile('./state.json', stateString, (err) => {
+		if (err) {
+			console.log('error saving state');
+			console.error(err);
+		}
+	});
+}
 
 let API_TO_USE = API_URI;
 // API_TO_USE = SANDBOX_URL;
@@ -68,16 +97,16 @@ async function placeOrder (order, ticker, original=null) {
 	return record;
 }
 
-async function getOrder (order) {
+async function getTicker () {
 	try {
-		return await authedClient.getOrder(order.id);
+		return await publicClient.getProductTicker('BTC-USD');
 	} catch (e) {
-		return await authedClient.getOrder(order.id);
+		return await publicClient.getProductTicker('BTC-USD');
 	}
 }
 
-async function lookupPriceAndPlaceOrders (walletId, tick) {
-	const ticker = await publicClient.getProductTicker('BTC-USD');
+async function lookupPriceAndPlaceOrders () {
+	const ticker = await getTicker();
 	const ask = parseFloat(ticker.ask);
 	const bid = parseFloat(ticker.bid);
 
@@ -110,10 +139,11 @@ async function lookupPriceAndPlaceOrders (walletId, tick) {
 	}, []));
 }
 
-async function placeOrdersAndRepeat (tick) {
+async function placeOrders () {
 	console.log(`Tick ${tick}. ${new Date().toISOString()}`);
 	try {
-		orders = await lookupPriceAndPlaceOrders(tick);
+		await lookupPriceAndPlaceOrders();
+		saveState();
 	} catch (e) {
 		console.log('error placing orders');
 		console.error(e);
@@ -121,23 +151,40 @@ async function placeOrdersAndRepeat (tick) {
 	if (tick === 0) {
 		setTimeout(updateOrders, 2000);
 	}
-	setTimeout(() => placeOrdersAndRepeat(tick+1), 60 * 1000);
+	tick++;
 }
 
 async function updateOrders () {
 	try {
 		const userOrders = await authedClient.getOrders();
+		if (userOrders.message) {
+			throw userOrders;
+		}
+
 		const userFills = await authedClient.getFills();
+		if (userFills.message) {
+			throw userFills;
+		}
 
 		let executedRecords = getExecutedRecords(records, userFills);
-		records = removeExecutedRecords(records, userFills)
-		records = removeExpiredRecords(records, userOrders);
 
 		let recordsToReplace = executedRecords.filter(r => r.original === null);
-		recordsToReplace.forEach(async record => {
-			let order = createReplacementOrder(record);
-			placeOrder(order, record.ticker, record.order);
-		});
+
+		if (recordsToReplace.length) {
+			let currentTicker = await getTicker();
+			recordsToReplace.forEach(async record => {
+				let order = createReplacementOrder(record, currentTicker);
+				placeOrder(order, record.ticker, record.order);
+			});
+		}
+
+		records = removeExecutedRecords(records, userFills);
+		records = removeExpiredRecords(records, userOrders);
+		saveState();
+
+		if (records.find(r => r.original === null) === undefined) {
+			placeOrders();
+		}
 
 		let filledReplacementOrders = executedRecords.filter(r => r.original !== null);
 		filledReplacementOrders.forEach(record => {
@@ -158,4 +205,4 @@ async function updateOrders () {
 	setTimeout(updateOrders, 2000);
 }
 
-placeOrdersAndRepeat(0);
+updateOrders();

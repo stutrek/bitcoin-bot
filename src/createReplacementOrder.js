@@ -6,9 +6,17 @@ const genericReplacementOrder = Object.freeze({
 	post_only: true
 });
 
-module.exports = function (record) {
+module.exports = function (record, currentTicker) {
 	let originalOrder = record.order;
-	let ticker = record.ticker;
+	let ticker;
+
+	if (record.side === 'buy') { // the replacement will be a sell
+		// if the price has gone up it would be silly to sell for less than the current ask.
+		ticker = record.ticker.ask < currentTicker.ask ? currentTicker : record.ticker;
+	} else {
+		ticker = record.ticker.bid > currentTicker.bid ? currentTicker : record.ticker;
+	}
+
 	let replacementOrder;
 	let valueOfThisTrade = originalOrder.size * originalOrder.price;
 	let tickerPrice = originalOrder.side === 'buy' ? ticker.ask : ticker.bid;

@@ -12,6 +12,12 @@
 			"request": "launch",
 			"name": "Test",
 			"program": "${workspaceFolder}/tests/index.js"
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Sandbox",
+			"program": "${workspaceFolder}/sandbox.js"
 		}
 	],
 	"compounds": []
