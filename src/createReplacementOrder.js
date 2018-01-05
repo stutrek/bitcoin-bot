@@ -18,26 +18,26 @@ module.exports = function (record, currentTicker) {
 	}
 
 	let replacementOrder;
-	let valueOfThisTrade = originalOrder.size * originalOrder.price;
-	let tickerPrice = originalOrder.side === 'buy' ? ticker.ask : ticker.bid;
-	let potentialValueOfReplacement = originalOrder.size * tickerPrice;
-
-	let desiredDollars = valueOfThisTrade - (valueOfThisTrade - potentialValueOfReplacement) / 2;
-	let newSize = (desiredDollars / tickerPrice).toFixed(8);
 
 	if (originalOrder.side === 'buy') {
+		// if the price is going down we want to extract cash and leave crypto
+		// so we make a transaction of the same size
 		replacementOrder = {
 			...genericReplacementOrder,
 			side: 'sell',
 			price: ticker.ask,
-			size: newSize
+			size: originalOrder.size
 		}
 	} else {
+		// if the price is going up we want to extract crypto and leave cash
+		// so we make a transaction of the same value
+		let valueOfThisTrade = originalOrder.size * originalOrder.price;
+		let desiredSize = (valueOfThisTrade / ticker.bid).toPrecision(8);
 		replacementOrder = {
 			...genericReplacementOrder,
 			side: 'buy',
 			price: ticker.bid,
-			size: newSize
+			size: desiredSize
 		}
 	}
 	return replacementOrder;
