@@ -89,9 +89,9 @@ async function placeOrder (order, ticker, original=null) {
 		console.log('Error placing order.');
 		console.log(record.order);
 	} else if (original) {
-		console.log(`Placed ${record.order.side.toUpperCase().padEnd(4, ' ')} ${record.order.size} @ ${record.order.price} -- ${record.order.id} -- replaces ${original.id}`);
+		console.log(`Placed ${record.order.side.toUpperCase().padEnd(4, ' ')} ${record.order.size} @ ${record.order.price}. Ticker is ${ticker.ask}/${ticker.bid} -- ${record.order.id} -- replaces ${original.id}`);
 	} else {
-		console.log(`Placed ${record.order.side.toUpperCase().padEnd(4, ' ')} ${record.order.size} @ ${record.order.price} -- ${record.order.id}`);
+		console.log(`Placed ${record.order.side.toUpperCase().padEnd(4, ' ')} ${record.order.size} @ ${record.order.price}. Ticker is ${ticker.ask}/${ticker.bid} -- ${record.order.id}`);
 	}
 
 	return record;
