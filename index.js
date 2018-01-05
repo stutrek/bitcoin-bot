@@ -89,9 +89,9 @@ async function placeOrder (order, ticker, original=null) {
 		console.log('Error placing order.');
 		console.log(record.order);
 	} else if (original) {
-		console.log(`Placed ${record.order.side.toUpperCase().padEnd(4, ' ')} ${record.order.size} @ ${record.order.price}. Ticker is $${ticker.ask.toFixed(2)}/${ticker.bid.toFixed(2)} -- ${record.order.id} -- replaces ${original.id}`);
+		console.log(`Placed ${record.order.side.toUpperCase().padEnd(4, ' ')} ${record.order.size} @ ${record.order.price}. Ticker is $${Number(ticker.ask).toFixed(2)}/${Number(ticker.bid).toFixed(2)} -- ${record.order.id} -- replaces ${original.id}`);
 	} else {
-		console.log(`Placed ${record.order.side.toUpperCase().padEnd(4, ' ')} ${record.order.size} @ ${record.order.price}. Ticker is $${ticker.ask.toFixed(2)}/${ticker.bid.toFixed(2)} -- ${record.order.id}`);
+		console.log(`Placed ${record.order.side.toUpperCase().padEnd(4, ' ')} ${record.order.size} @ ${record.order.price}. Ticker is $${Number(ticker.ask).toFixed(2)}/${Number(ticker.bid).toFixed(2)} -- ${record.order.id}`);
 	}
 
 	return record;
@@ -140,6 +140,7 @@ async function lookupPriceAndPlaceOrders () {
 }
 
 async function placeOrders () {
+	tick++;
 	console.log(`Tick ${tick}. ${new Date().toISOString()}`);
 	try {
 		await lookupPriceAndPlaceOrders();
@@ -148,10 +149,6 @@ async function placeOrders () {
 		console.log('error placing orders');
 		console.error(e);
 	}
-	if (tick === 0) {
-		setTimeout(updateOrders, 2000);
-	}
-	tick++;
 }
 
 async function updateOrders () {
