@@ -21,18 +21,19 @@ module.exports = function (record, currentTicker) {
 
 	if (originalOrder.side === 'buy') {
 		// if the price is going down we want to extract cash and leave crypto
-		// so we make a transaction of the same size
+		// so we make a transaction of the same size (minus one satoshi to identify it in logs)
+		let desiredSize = (Number(originalOrder.size)- 0.00000001).toFixed(8);
 		replacementOrder = {
 			...genericReplacementOrder,
 			side: 'sell',
 			price: ticker.ask,
-			size: originalOrder.size
+			size: desiredSize
 		}
 	} else {
 		// if the price is going up we want to extract crypto and leave cash
 		// so we make a transaction of the same value
 		let valueOfThisTrade = originalOrder.size * originalOrder.price;
-		let desiredSize = (valueOfThisTrade / ticker.bid).toPrecision(8);
+		let desiredSize = (valueOfThisTrade / ticker.bid).toFixed(8);
 		replacementOrder = {
 			...genericReplacementOrder,
 			side: 'buy',
