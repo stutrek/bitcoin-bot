@@ -7,38 +7,34 @@ const genericReplacementOrder = Object.freeze({
 });
 
 module.exports = function (record, currentTicker) {
-	let originalOrder = record.order;
-	let ticker;
+	let priceDifference = record.order.price * record.config.replacementPercent;
+	//let halfPriceDifference = priceDifference / 2;
 
+	let cryptoDifference = record.order.size * record.config.replacementPercent;
+	let fractionalCryptoDifference = cryptoDifference / 3;
+
+	let newPrice;
+	let newSize;
 	if (record.order.side === 'buy') { // the replacement will be a sell
+		newPrice = Number(record.order.price) + priceDifference;
+		newSize = Number(record.order.size) - fractionalCryptoDifference;
 		// if the price has gone up it would be silly to sell for less than the current ask.
-		ticker = record.ticker.bid < currentTicker.bid ? currentTicker : record.ticker;
+		if (newPrice < Number(record.ticker.bid)) {
+			newPrice = Number(record.ticker.bid);
+		}
 	} else {
-		ticker = record.ticker.ask > currentTicker.ask ? currentTicker : record.ticker;
+		newPrice = Number(record.order.price) - priceDifference;
+		newSize = Number(record.order.size) + fractionalCryptoDifference;
+		if (newPrice > Number(record.ticker.bid)) {
+			newPrice = Number(record.ticker.bid);
+		}
 	}
 
-	let replacementOrder;
-	let valueOfThisTrade = originalOrder.size * originalOrder.price;
-	let tickerPrice = originalOrder.side === 'buy' ? ticker.ask : ticker.bid;
-	let potentialValueOfReplacement = originalOrder.size * tickerPrice;
-
-	let desiredDollars = valueOfThisTrade - (valueOfThisTrade - potentialValueOfReplacement) / 2;
-	let newSize = (desiredDollars / tickerPrice).toFixed(8);
-
-	if (originalOrder.side === 'buy') {
-		replacementOrder = {
-			...genericReplacementOrder,
-			side: 'sell',
-			price: ticker.ask,
-			size: newSize
-		}
-	} else {
-		replacementOrder = {
-			...genericReplacementOrder,
-			side: 'buy',
-			price: ticker.bid,
-			size: newSize
-		}
+	const replacementOrder = {
+		...genericReplacementOrder,
+		side: record.order.side === 'buy' ? 'sell' : 'buy',
+		price: newPrice.toFixed(2),
+		size: newSize.toFixed(8)
 	}
 	return replacementOrder;
 }

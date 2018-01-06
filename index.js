@@ -35,12 +35,15 @@ const RUN_ID = new Date().toISOString().replace(/\W/g, '-');
 
 const orderConfigs = [{
 	percent: 0.0015,
+	replacementPercent: 0.0045,
 	amount: 0.0015
 },{
 	percent: 0.0035,
+	replacementPercent: 0.0101,
 	amount: 0.0025
 },{
 	percent: 0.0075,
+	replacementPercent: 0.0225,
 	amount: 0.005
 }];
 const amounts = [0.002, 0.004, 0.006];
@@ -52,6 +55,18 @@ try {
 	let stateString = readFileSync('./state.json');
 	let state = JSON.parse(stateString);
 	console.log(`Starting on tick ${tick}`);
+
+	state.records = state.records.map(r => {
+		if (r.config) {
+			return r;
+		}
+		return {
+			...r,
+			config: orderConfigs[0]
+		};
+	})
+
+
 	ui.printState(state);
 	records = state.records;
 	tick = state.tick;
@@ -89,7 +104,7 @@ function sleep (ms) {
 }
 
 var devOrderId = 0;
-async function placeOrder (order, ticker, original=null) {
+async function placeOrder (order, ticker, config, original=null) {
 	let gdaxOrder
 	if (machine.isDev) {
 		gdaxOrder = {
@@ -112,6 +127,7 @@ async function placeOrder (order, ticker, original=null) {
 	let record = {
 		order: gdaxOrder,
 		ticker,
+		config,
 		original
 	};
 
@@ -155,8 +171,8 @@ async function lookupPriceAndPlaceOrders () {
 		};
 
 		let records = [
-			placeOrder(buyOrder, ticker),
-			placeOrder(sellOrder, ticker)
+			placeOrder(buyOrder, ticker, orderConfig),
+			placeOrder(sellOrder, ticker, orderConfig)
 		];
 
 		return acc.concat(records);
@@ -195,7 +211,7 @@ async function updateOrders () {
 			let currentTicker = await getTicker();
 			recordsToReplace.forEach(async record => {
 				let order = createReplacementOrder(record, currentTicker);
-				placeOrder(order, record.ticker, record.order);
+				placeOrder(order, record.ticker, record.config, record.order);
 			});
 		}
 		records = removeExecutedRecords(records, userFills);
