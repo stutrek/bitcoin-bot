@@ -103,6 +103,23 @@ function sleep (ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function getOrders () {
+	let orders = await authedClient.getOrders({limit: 100});
+
+	if (orders.length === 100) {
+		let nextPage;
+		do {
+			try {
+				nextPage = await authedClient.getOrders({after: orders[orders.length-1].created_at});
+			} catch (e) {
+				nextPage = await authedClient.getOrders({after: orders[orders.length-1].created_at});
+			}
+			orders = [...orders, ...nextPage];
+		} while (nextPage.length !== 0);
+	}
+	return orders;
+}
+
 var devOrderId = 0;
 async function placeOrder (order, ticker, config, original=null) {
 	let gdaxOrder
@@ -193,7 +210,7 @@ async function placeOrders () {
 async function updateOrders () {
 	const oldRecords = records;
 	try {
-		const userOrders = await authedClient.getOrders();
+		const userOrders = await getOrders();
 		if (userOrders.message) {
 			throw userOrders;
 		}

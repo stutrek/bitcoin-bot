@@ -16,22 +16,36 @@ const publicClient = new Gdax.PublicClient(API_TO_USE);
 const authedClient = new Gdax.AuthenticatedClient(API_KEY, API_SECRET, PASSPHRASE, API_TO_USE);
 async function doStuff () {
 
-	let serverOrders = await authedClient.getOrders();
+	let orders = await authedClient.getOrders({limit: 100});
 
-	let filteredOrders = serverOrders.filter(o => Number(o.price) < 20000);
-	console.log(filteredOrders.map(o => o.price).join('\n'));
-	let records = filteredOrders.map( o => ({order: o}));
-	ui.printState({
-		records,
-		tick: 1
-	});
+	if (orders.length === 100) {
+		let nextPage;
+		do {
+			try {
+				nextPage = await authedClient.getOrders({after: orders[orders.length-1].created_at});
+			} catch (e) {
+				nextPage = await authedClient.getOrders({after: orders[orders.length-1].created_at});
+			}
+			orders = [...orders, ...nextPage];
+		} while (nextPage.length !== 0);
+	}
+	console.log(orders);
+	// let serverOrders = await new Promise((resolve, reject) => {
+	// 	let orders = [];
+	// 	function getOrdersAndMaybeResolve () {
+	// 		authedClient.getOrders((err, response, data) => {
+	// 			if (data.length === 100) {
 
-	console.log(await authedClient.getOrders());
-
-	console.log(await authedClient.getOrders());
-
+	// 			}
+	// 			console.log(response);
+	// 			console.log(data);
+	// 			resolve(data);
+	// 		});
+	// 	}
+	// 	getOrdersAndMaybeResolve();
+	// });
 	// console.log(JSON.stringify(await publicClient.getProductTicker('BTC-USD'), null, 4));
-	//debugger;
+	debugger;
 }
 
 doStuff();
