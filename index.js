@@ -6,6 +6,20 @@ const {PASSPHRASE, API_KEY, API_SECRET} = require('./keys.json');
 const createReplacementOrder = require('./src/createReplacementOrder');
 const { getExecutedRecords, removeExpiredRecords, removeExecutedRecords, addRecord } = require('./src/orderReducers');
 
+const ui = require('./src/ui');
+
+const machine = (() => {
+	try {
+		let data = JSON.parse(readFileSync('./machine.config.json'));
+		console.log(data);
+		return data;
+	} catch (e) {
+		return {
+			isDev: false
+		};
+	}
+})();
+
 const API_URI = 'https://api.gdax.com';
 const SANDBOX_URI = 'https://api-public.sandbox.gdax.com';
 
@@ -37,16 +51,21 @@ var tick = 0;
 try {
 	let stateString = readFileSync('./state.json');
 	let state = JSON.parse(stateString);
+	console.log(`Starting on tick ${tick}`);
+	ui.printState(state);
 	records = state.records;
 	tick = state.tick;
 } catch (e) {
 	console.log('No state file found');
 }
 
-console.log(`Starting on tick ${tick} with ${records.length} records`);
 
 
 function saveState () {
+	ui.printState({
+		records,
+		tick
+	});
 	let stateString = JSON.stringify({
 		records,
 		tick
@@ -54,8 +73,7 @@ function saveState () {
 
 	writeFile('./state.json', stateString, (err) => {
 		if (err) {
-			console.log('error saving state');
-			console.error(err);
+			ui.printError('saving state', err);
 		}
 	});
 }
@@ -70,14 +88,27 @@ function sleep (ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+var devOrderId = 0;
 async function placeOrder (order, ticker, original=null) {
 	let gdaxOrder
-	try {
-		gdaxOrder = await authedClient.placeOrder(order);
-	} catch (e) {
-		gdaxOrder = await authedClient.placeOrder(order);
+	if (machine.isDev) {
+		gdaxOrder = {
+			id: devOrderId++,
+			"created_at": "2018-01-05T04:35:57.562788Z",
+			"fill_fees": "0.0000000000000000",
+			"filled_size": "0.00000000",
+			"executed_value": "0.0000000000000000",
+			"status": "pending",
+			"settled": false,
+			...order
+		};
+	} else {
+		try {
+			gdaxOrder = await authedClient.placeOrder(order);
+		} catch (e) {
+			gdaxOrder = await authedClient.placeOrder(order);
+		}
 	}
-
 	let record = {
 		order: gdaxOrder,
 		ticker,
@@ -85,14 +116,7 @@ async function placeOrder (order, ticker, original=null) {
 	};
 
 	records = addRecord(records, record);
-	if (!record.order.side) {
-		console.log('Error placing order.');
-		console.log(record.order);
-	} else if (original) {
-		console.log(`Placed ${record.order.side.toUpperCase().padEnd(4, ' ')} ${record.order.size} @ $${Number(record.order.price).toFixed(2)}. Ticker is $${Number(ticker.ask).toFixed(2)}/${Number(ticker.bid).toFixed(2)} -- ${record.order.id} -- replaces ${original.id}`);
-	} else {
-		console.log(`Placed ${record.order.side.toUpperCase().padEnd(4, ' ')} ${record.order.size} @ $${Number(record.order.price).toFixed(2)}. Ticker is $${Number(ticker.ask).toFixed(2)}/${Number(ticker.bid).toFixed(2)} -- ${record.order.id}`);
-	}
+	ui.printOrder(record);
 
 	return record;
 }
@@ -146,12 +170,12 @@ async function placeOrders () {
 		await lookupPriceAndPlaceOrders();
 		saveState();
 	} catch (e) {
-		console.log('error placing orders');
-		console.error(e);
+		ui.printError('placing orders', e);
 	}
 }
 
 async function updateOrders () {
+	const oldRecords = records;
 	try {
 		const userOrders = await authedClient.getOrders();
 		if (userOrders.message) {
@@ -174,29 +198,22 @@ async function updateOrders () {
 				placeOrder(order, record.ticker, record.order);
 			});
 		}
-
 		records = removeExecutedRecords(records, userFills);
 		records = removeExpiredRecords(records, userOrders);
-		saveState();
+		if (records.length !== oldRecords.length) {
+			saveState();
+
+			let filledReplacementOrders = executedRecords.filter(r => r.original !== null);
+			filledReplacementOrders.forEach(ui.printReplacmentFilled);
+		}
 
 		if (records.find(r => r.original === null) === undefined) {
+			console.log('placing orders');
 			await placeOrders();
 		}
 
-		let filledReplacementOrders = executedRecords.filter(r => r.original !== null);
-		filledReplacementOrders.forEach(record => {
-			let btcNet = record.order.size - record.original.size
-			let cashNet = (record.original.size * record.original.price) - (record.order.size * record.order.price);
-			if (record.order.side === 'sell') {
-				btcNet = btcNet * -1;
-				cashNet = cashNet * -1;
-			}
-			console.log(`Filled replacement ${record.order.side.toUpperCase().padEnd(4, ' ')} ${record.order.size} @ $${Number(record.order.price).toFixed(2)} -- ${record.order.id} -- Net ${btcNet.toFixed(8)}BTC, $${cashNet.toFixed(2)}.`);
-		});
-
 	} catch (e) {
-		console.log('Unable to check for records. Will try again in two seconds.')
-		console.error(e)
+		ui.printError('checking for records. Will try again in two seconds.', e)
 	}
 
 	setTimeout(updateOrders, 2000);

@@ -15,10 +15,22 @@ const authedClient = new Gdax.AuthenticatedClient(API_KEY, API_SECRET, PASSPHRAS
 
 async function doStuff () {
 
-console.log(await authedClient.getOrders());
+	let serverOrders = await authedClient.getOrders();
 
-console.log(JSON.stringify(await publicClient.getProductTicker('BTC-USD'), null, 4));
-debugger;
+	let orders = [];
+	let offset = 2;
+	let newOrders;
+	do {
+		newOrders = await authedClient.getOrders({after: 20, limit: 20});
+		console.log(newOrders);
+	} while(false)
+
+	console.log(await authedClient.getOrders());
+
+	console.log(await authedClient.getOrders());
+
+	// console.log(JSON.stringify(await publicClient.getProductTicker('BTC-USD'), null, 4));
+	debugger;
 }
 
 doStuff();

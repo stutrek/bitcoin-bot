@@ -8,7 +8,8 @@
   },
   "scripts": {
     "start": "node index.js",
-    "test": "node tests/index.js"
+    "test": "node tests/index.js",
+    "lint": "eslint"
   },
   "devDependencies": {
     "eslint": "^4.14.0"
