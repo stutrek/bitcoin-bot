@@ -54,22 +54,10 @@ var tick = 0;
 try {
 	let stateString = readFileSync('./state.json');
 	let state = JSON.parse(stateString);
-	console.log(`Starting on tick ${tick}`);
-
-	state.records = state.records.map(r => {
-		if (r.config) {
-			return r;
-		}
-		return {
-			...r,
-			config: orderConfigs[0]
-		};
-	})
-
-
-	ui.printState(state);
 	records = state.records;
 	tick = state.tick;
+	console.log(`Starting on tick ${tick}`);
+	ui.printState(state);
 } catch (e) {
 	console.log('No state file found');
 }
