@@ -41,12 +41,11 @@ const orderConfigs = [{
 	percent: 0.0035,
 	replacementPercent: 0.0101,
 	amount: 0.0025
-},{
-	percent: 0.0075,
-	replacementPercent: 0.0225,
-	amount: 0.005
+// },{
+// 	percent: 0.0075,
+// 	replacementPercent: 0.0225,
+// 	amount: 0.005
 }];
-const amounts = [0.002, 0.004, 0.006];
 
 var records = [];
 var tick = 0;
